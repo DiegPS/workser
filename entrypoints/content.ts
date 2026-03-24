@@ -9,9 +9,28 @@ export default defineContentScript({
     const companiesItem = storage.defineItem<string[]>("local:blocked_companies", { defaultValue: [] });
     const keywordsItem  = storage.defineItem<string[]>("local:blocked_keywords",  { defaultValue: [] });
     const counterItem   = storage.defineItem<number>("local:workser_hidden_count", { defaultValue: 0  });
+    const modeItem      = storage.defineItem<"hide" | "blur">("local:workser_mode", { defaultValue: "hide" });
 
     let blockedCompanies: string[] = [];
     let blockedKeywords:  string[] = [];
+    let currentMode: "hide" | "blur" = "hide";
+
+    // Inyectar CSS global para los modos de ocultación
+    const styleEl = document.createElement('style');
+    styleEl.innerHTML = `
+      [data-workser-blocked="true"] {
+        transition: filter 0.3s, opacity 0.3s;
+      }
+      body[data-workser-mode="hide"] [data-workser-blocked="true"] {
+        display: none !important;
+      }
+      body[data-workser-mode="blur"] [data-workser-blocked="true"] {
+        filter: blur(8px) grayscale(100%) !important;
+        opacity: 0.5 !important;
+        pointer-events: none !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
 
     // Sumar N al contador — UNA sola lectura+escritura para evitar race condition
     async function addToCounter(n: number) {
@@ -34,7 +53,6 @@ export default defineContentScript({
 
       if (!matches) return false;
 
-      node.style.display = "none";
       node.dataset.workserBlocked = "true";
       return true;
     }
@@ -74,6 +92,8 @@ export default defineContentScript({
     async function init() {
       blockedCompanies = (await companiesItem.getValue() ?? []).map(c => c.toLowerCase());
       blockedKeywords  = (await keywordsItem.getValue()  ?? []).map(k => k.toLowerCase());
+      currentMode      = (await modeItem.getValue()) ?? "hide";
+      document.body.dataset.workserMode = currentMode;
 
       // Reaccionar si el usuario cambia los filtros desde el popup
       companiesItem.watch((val) => {
@@ -83,6 +103,10 @@ export default defineContentScript({
       keywordsItem.watch((val) => {
         blockedKeywords = (val ?? []).map(k => k.toLowerCase());
         scanAndCount();
+      });
+      modeItem.watch((val) => {
+        currentMode = val ?? "hide";
+        document.body.dataset.workserMode = currentMode;
       });
 
       await scanAndCount();
