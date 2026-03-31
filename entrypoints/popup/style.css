@@ -177,6 +177,29 @@ body {
   margin-bottom: 10px;
 }
 
+.list-controls {
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.list-sort-label {
+  font-size: 10px;
+  color: #8b949e;
+}
+
+.list-sort-select {
+  background: #0b0f14;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-size: 11px;
+  outline: none;
+}
+
 .list-search {
   width: 100%;
   background: #0b0f14;
@@ -442,11 +465,91 @@ body {
   border-bottom: none;
 }
 
+.list-group {
+  margin-bottom: 6px;
+}
+
+.list-group-title {
+  font-size: 10px;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+
 .list-item span {
   font-size: 13px;
   font-weight: 500;
   word-break: break-all;
   padding-right: 10px;
+}
+
+.list-text-btn {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: #c9d1d9;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+.list-text-btn:hover {
+  color: #79c0ff;
+}
+
+.list-edit-input {
+  flex: 1;
+  background: #0b0f14;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 12px;
+  outline: none;
+}
+
+.list-edit-input:focus {
+  border-color: #58a6ff;
+}
+
+.list-actions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.btn-inline {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(88, 166, 255, 0.35);
+  background: rgba(88, 166, 255, 0.12);
+  color: #79c0ff;
+  border-radius: 999px;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-inline.success {
+  border-color: rgba(46, 160, 67, 0.45);
+  background: rgba(46, 160, 67, 0.14);
+  color: #7ee787;
+}
+
+.btn-inline:hover {
+  transform: translateY(-1px);
+}
+
+.btn-inline.muted {
+  border-color: rgba(240, 246, 252, 0.2);
+  background: rgba(240, 246, 252, 0.04);
+  color: #8b949e;
 }
 
 .btn-remove {

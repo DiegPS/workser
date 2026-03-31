@@ -27,6 +27,8 @@ type SiteStat = {
   count: number;
 };
 
+type SortMode = "recent" | "az" | "za";
+
 type ActiveSite = Exclude<SiteKey, "other"> | null;
 
 const metricsKey = "local:workser_metrics";
@@ -127,6 +129,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"companies" | "keywords">("companies");
   const [inputValue, setInputValue] = useState("");
   const [listSearch, setListSearch] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("recent");
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
   const [mainTab, setMainTab] = useState<"filters" | "metrics">("filters");
   const [metrics, setMetrics] = useState<MetricsStore>({ totalHidden: 0, daily: {}, ruleHits: {} });
   const [activeSite, setActiveSite] = useState<ActiveSite>(null);
@@ -180,6 +185,11 @@ export default function App() {
       setActiveSite(null);
     });
   }, []);
+
+  useEffect(() => {
+    setEditingItem(null);
+    setEditingValue("");
+  }, [activeTab]);
 
   const last7Keys = useMemo(() => getLastDaysKeys(7), []);
 
@@ -258,12 +268,64 @@ export default function App() {
     }
   };
 
+  const handleStartEdit = (item: string) => {
+    setEditingItem(item);
+    setEditingValue(item);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingItem(null);
+    setEditingValue("");
+  };
+
+  const handleSaveEdit = (oldItem: string) => {
+    const next = normalizeRuleValue(editingValue);
+    if (!next) {
+      handleCancelEdit();
+      return;
+    }
+
+    if (activeTab === "companies") {
+      const updated = normalizeRulesList(companies.map((item) => (item === oldItem ? next : item)));
+      setCompanies(updated);
+      companiesStorage.setValue(updated);
+    } else {
+      const updated = normalizeRulesList(keywords.map((item) => (item === oldItem ? next : item)));
+      setKeywords(updated);
+      keywordsStorage.setValue(updated);
+    }
+
+    handleCancelEdit();
+  };
+
   const currentList = activeTab === "companies" ? companies : keywords;
   const filteredList = useMemo(() => {
     const search = normalizeRuleValue(listSearch);
     if (!search) return currentList;
     return currentList.filter((item) => item.includes(search));
   }, [currentList, listSearch]);
+  const sortedList = useMemo(() => {
+    if (sortMode === "recent") return [...filteredList].reverse();
+    const next = [...filteredList].sort((a, b) => a.localeCompare(b, "es"));
+    if (sortMode === "za") next.reverse();
+    return next;
+  }, [filteredList, sortMode]);
+  const groupedList = useMemo(() => {
+    if (sortMode === "recent") {
+      return [{ key: "recientes", label: "Recientes", items: sortedList }];
+    }
+
+    const groups = new Map<string, string[]>();
+    sortedList.forEach((item) => {
+      const first = item[0]?.toUpperCase() ?? "#";
+      const groupKey = /[A-Z]/.test(first) ? first : "#";
+      const groupItems = groups.get(groupKey) ?? [];
+      groupItems.push(item);
+      groups.set(groupKey, groupItems);
+    });
+
+    return Array.from(groups.entries()).map(([key, items]) => ({ key, label: key, items }));
+  }, [sortedList, sortMode]);
 
   const isMetricsActive = !showSettings && mainTab === "metrics";
 
@@ -424,12 +486,21 @@ export default function App() {
                     Palabras Clave
                   </button>
                 </div>
-                <span className="tabs-count">
-                  {filteredList.length}/{currentList.length} {activeTab === "companies" ? "empresas" : "palabras"}
-                </span>
               </div>
 
               <div className="content">
+                <div className="list-controls">
+                  <span className="list-sort-label">Orden</span>
+                  <select className="list-sort-select" value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)}>
+                    <option value="recent">Recientes</option>
+                    <option value="az">A-Z</option>
+                    <option value="za">Z-A</option>
+                  </select>
+                  <span className="tabs-count">
+                    {filteredList.length}/{currentList.length} {activeTab === "companies" ? "empresas" : "palabras"}
+                  </span>
+                </div>
+
                 <div className="list-search-wrap">
                   <input
                     className="list-search"
@@ -465,7 +536,7 @@ export default function App() {
                     </svg>
                     <p>No hay filtros activos todavia.</p>
                   </div>
-                ) : filteredList.length === 0 ? (
+                ) : sortedList.length === 0 ? (
                   <div className="empty-state">
                     <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="11" cy="11" r="8" />
@@ -475,17 +546,54 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="filters-list">
-                    {filteredList.map((item) => (
-                      <div className="list-item" key={item}>
-                        <span>{item}</span>
-                        <button className="btn-remove" onClick={() => handleRemove(item)} title="Eliminar">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            <line x1="10" y1="11" x2="10" y2="17" />
-                            <line x1="14" y1="11" x2="14" y2="17" />
-                          </svg>
-                        </button>
+                    {groupedList.map((group) => (
+                      <div className="list-group" key={group.key}>
+                        <p className="list-group-title">{group.label}</p>
+                        {group.items.map((item) => (
+                          <div className="list-item" key={item}>
+                            {editingItem === item ? (
+                              <>
+                                <input
+                                  className="list-edit-input"
+                                  value={editingValue}
+                                  onChange={(e) => setEditingValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleSaveEdit(item);
+                                    if (e.key === "Escape") handleCancelEdit();
+                                  }}
+                                  autoFocus
+                                />
+                                <div className="list-actions">
+                                  <button className="btn-inline success" onClick={() => handleSaveEdit(item)} title="Guardar">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                  </button>
+                                  <button className="btn-inline muted" onClick={handleCancelEdit} title="Cancelar">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <line x1="18" y1="6" x2="6" y2="18" />
+                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <button className="list-text-btn" onClick={() => handleStartEdit(item)} title="Editar">
+                                  {item}
+                                </button>
+                                <button className="btn-remove" onClick={() => handleRemove(item)} title="Eliminar">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <line x1="10" y1="11" x2="10" y2="17" />
+                                    <line x1="14" y1="11" x2="14" y2="17" />
+                                  </svg>
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>
