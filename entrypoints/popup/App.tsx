@@ -223,6 +223,31 @@ export default function App() {
   }, [last7Keys, metrics.daily]);
 
   const maxTrend = useMemo(() => Math.max(1, ...trendData.map((d) => d.value)), [trendData]);
+  const trendPoints = useMemo(() => {
+    const width = 100;
+    const height = 56;
+    const len = trendData.length;
+    return trendData.map((item, index) => {
+      const x = len > 1 ? (index / (len - 1)) * width : width / 2;
+      const y = height - (item.value / maxTrend) * height;
+      return { x, y, ...item };
+    });
+  }, [trendData, maxTrend]);
+  const trendLine = useMemo(() => trendPoints.map((p) => `${p.x},${p.y}`).join(" "), [trendPoints]);
+  const trendArea = useMemo(() => {
+    if (!trendPoints.length) return "";
+    const first = trendPoints[0];
+    const last = trendPoints[trendPoints.length - 1];
+    return `M ${first.x} 56 L ${first.x} ${first.y} ${trendPoints.map((p) => `L ${p.x} ${p.y}`).join(" ")} L ${last.x} 56 Z`;
+  }, [trendPoints]);
+  const avgTrend = useMemo(() => {
+    if (!trendData.length) return 0;
+    return trendData.reduce((acc, item) => acc + item.value, 0) / trendData.length;
+  }, [trendData]);
+  const avgLineY = useMemo(() => {
+    const height = 56;
+    return height - (avgTrend / maxTrend) * height;
+  }, [avgTrend, maxTrend]);
 
   const bySite = useMemo<SiteStat[]>(() => {
     const values = SITE_ITEMS.map((item) => {
@@ -688,20 +713,38 @@ export default function App() {
                     <span>Total semana: {weekHidden}</span>
                     <span>Pico diario: {maxTrend}</span>
                   </div>
-                  <div className="sparkline">
-                    {trendData.map((item, index) => {
-                      const height = Math.max(6, Math.round((item.value / maxTrend) * 100));
-                      const isToday = index === trendData.length - 1;
-                      return (
-                        <div className={`sparkline-col ${isToday ? "is-today" : ""}`} key={item.key} title={`${item.label}: ${item.value}`}>
-                          <div className="sparkline-value">{item.value}</div>
-                          <div className="sparkline-track">
-                            <div className="sparkline-bar" style={{ height: `${height}%` }} />
+                  <div className="trend-chart-wrap">
+                    <svg className="trend-svg" viewBox="0 0 100 56" preserveAspectRatio="none" role="img" aria-label="Tendencia de trabajos filtrados en 7 dias">
+                      <line x1="0" y1="56" x2="100" y2="56" className="trend-grid" />
+                      <line x1="0" y1="38" x2="100" y2="38" className="trend-grid soft" />
+                      <line x1="0" y1="20" x2="100" y2="20" className="trend-grid soft" />
+                      <line x1="0" y1={avgLineY} x2="100" y2={avgLineY} className="trend-grid avg" />
+                      <path d={trendArea} className="trend-area" />
+                      <polyline points={trendLine} className="trend-line" />
+                      {trendPoints.map((point, index) => {
+                        const isToday = index === trendPoints.length - 1;
+                        return (
+                          <circle
+                            key={point.key}
+                            cx={point.x}
+                            cy={point.y}
+                            r={isToday ? 2.2 : 1.8}
+                            className={isToday ? "trend-dot today" : "trend-dot"}
+                          />
+                        );
+                      })}
+                    </svg>
+                    <div className="trend-label-row">
+                      {trendPoints.map((point, index) => {
+                        const isToday = index === trendPoints.length - 1;
+                        return (
+                          <div className={`trend-label ${isToday ? "today" : ""}`} key={point.key} title={`${point.label}: ${point.value}`}>
+                            <strong>{point.value}</strong>
+                            <span>{point.label}</span>
                           </div>
-                          <span>{item.label}</span>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
