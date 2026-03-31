@@ -57,7 +57,7 @@ body {
 .kpi-top {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
 }
 
@@ -67,16 +67,22 @@ body {
   font-weight: 600;
 }
 
-.kpi-top span {
-  font-size: 10px;
-  color: #8b949e;
-}
-
 .home-kpi p {
   font-size: 24px;
   line-height: 1;
   font-weight: 700;
   color: #f0f6fc;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.kpi-unit {
+  font-size: 10px;
+  color: #8b949e;
+  font-weight: 600;
+  letter-spacing: 0.25px;
+  text-transform: lowercase;
 }
 
 .app-title {

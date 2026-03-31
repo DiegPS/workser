@@ -314,16 +314,20 @@ export default function App() {
             <div className="home-kpi primary">
               <div className="kpi-top">
                 <h3>{activeSiteLabel}</h3>
-                <span>7d</span>
               </div>
-              <p>{activeSiteCount}</p>
+              <p>
+                {activeSiteCount}
+                <span className="kpi-unit">7d</span>
+              </p>
             </div>
             <div className="home-kpi secondary">
               <div className="kpi-top">
                 <h3>Total acumulado</h3>
-                <span>global</span>
               </div>
-              <p>{hiddenCount}</p>
+              <p>
+                {hiddenCount}
+                <span className="kpi-unit">global</span>
+              </p>
             </div>
           </div>
         )}
