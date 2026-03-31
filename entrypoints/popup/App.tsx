@@ -27,6 +27,8 @@ type SiteStat = {
   count: number;
 };
 
+type ActiveSite = Exclude<SiteKey, "other"> | null;
+
 const metricsKey = "local:workser_metrics";
 
 const companiesStorage = storage.defineItem<string[]>(blockedCompaniesKey, { defaultValue: [] });
@@ -48,6 +50,19 @@ const SITE_ITEMS: Array<{ key: Exclude<SiteKey, "other">; label: string }> = [
   { key: "indeed", label: "Indeed" },
   { key: "computrabajo", label: "Computrabajo" },
 ];
+
+function detectSiteFromUrl(url: string | undefined): ActiveSite {
+  if (!url) return null;
+  try {
+    const host = new URL(url).hostname;
+    if (host.includes("linkedin.com")) return "linkedin";
+    if (host.includes("indeed.com")) return "indeed";
+    if (host.includes("computrabajo.com")) return "computrabajo";
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function getDateKey(date = new Date()): string {
   const y = date.getFullYear();
@@ -113,6 +128,7 @@ export default function App() {
   const [inputValue, setInputValue] = useState("");
   const [mainTab, setMainTab] = useState<"filters" | "metrics">("filters");
   const [metrics, setMetrics] = useState<MetricsStore>({ totalHidden: 0, daily: {}, ruleHits: {} });
+  const [activeSite, setActiveSite] = useState<ActiveSite>(null);
 
   useEffect(() => {
     companiesStorage.getValue().then((val) => {
@@ -156,6 +172,14 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
+      setActiveSite(detectSiteFromUrl(tabs[0]?.url));
+    }).catch(() => {
+      setActiveSite(null);
+    });
+  }, []);
+
   const last7Keys = useMemo(() => getLastDaysKeys(7), []);
 
   const todayKey = useMemo(() => getDateKey(), []);
@@ -194,6 +218,11 @@ export default function App() {
   }, [metrics.ruleHits]);
 
   const maxRuleHits = useMemo(() => Math.max(1, ...topRules.map(([, hits]) => hits)), [topRules]);
+  const activeSiteCount = useMemo(() => {
+    if (!activeSite) return 0;
+    return bySite.find((site) => site.key === activeSite)?.count ?? 0;
+  }, [activeSite, bySite]);
+  const activeSiteLabel = activeSite ? SITE_ITEMS.find((site) => site.key === activeSite)?.label ?? "Sitio" : "Sitio no compatible";
 
   const handleAdd = () => {
     const val = normalizeRuleValue(inputValue);
@@ -275,15 +304,13 @@ export default function App() {
 
         {!showSettings && mainTab === "filters" && (
           <div className="stats-dual-grid">
-            {bySite.map((site) => (
-              <div className="stats-card compact" key={site.key}>
-                <div className="stats-info">
-                  <h3>{site.label}</h3>
-                  <p>{site.count}</p>
-                </div>
-                <div className="pulse-circle" />
+            <div className="stats-card compact">
+              <div className="stats-info">
+                <h3>{activeSiteLabel}</h3>
+                <p>{activeSiteCount}</p>
               </div>
-            ))}
+              <div className="pulse-circle" />
+            </div>
             <div className="stats-card compact secondary">
               <div className="stats-info">
                 <h3>Total acumulado</h3>

@@ -7,41 +7,6 @@ export default defineContentScript({
 
   main() {
     type SiteKey = "linkedin" | "indeed" | "computrabajo" | "other";
-    type RetentionDays = 30 | 90 | 180;
-
-    type DailyMetrics = {
-      hidden: number;
-      bySite: Record<SiteKey, number>;
-    };
-
-    type MetricsStore = {
-      totalHidden: number;
-      daily: Record<string, DailyMetrics>;
-      ruleHits: Record<string, number>;
-    };
-
-    const buildEmptyDaily = (): DailyMetrics => ({
-      hidden: 0,
-      bySite: {
-        linkedin: 0,
-        indeed: 0,
-        computrabajo: 0,
-        other: 0,
-      },
-    });
-
-    const buildEmptyMetrics = (): MetricsStore => ({
-      totalHidden: 0,
-      daily: {},
-      ruleHits: {},
-    });
-
-    const getDateKey = (date = new Date()): string => {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
-    };
 
     const getSiteKey = (host: string): SiteKey => {
       if (host.includes("linkedin.com")) return "linkedin";
@@ -50,36 +15,15 @@ export default defineContentScript({
       return "other";
     };
 
-    const normalizeRetentionDays = (value: number | null | undefined): RetentionDays => {
-      if (value === 30 || value === 180) return value;
-      return 90;
-    };
-
-    const pruneDailyMetrics = (daily: Record<string, DailyMetrics>, retentionDays: RetentionDays): Record<string, DailyMetrics> => {
-      const threshold = new Date();
-      threshold.setDate(threshold.getDate() - retentionDays);
-      const thresholdKey = getDateKey(threshold);
-
-      const pruned: Record<string, DailyMetrics> = {};
-      Object.entries(daily).forEach(([key, value]) => {
-        if (key >= thresholdKey) pruned[key] = value;
-      });
-      return pruned;
-    };
-
     const companiesItem = storage.defineItem<string[]>("local:blocked_companies", { defaultValue: [] });
     const keywordsItem  = storage.defineItem<string[]>("local:blocked_keywords",  { defaultValue: [] });
-    const counterItem   = storage.defineItem<number>("local:workser_hidden_count", { defaultValue: 0  });
     const modeItem      = storage.defineItem<"hide" | "blur">("local:workser_mode", { defaultValue: "hide" });
     const enabledItem   = storage.defineItem<boolean>("local:workser_enabled", { defaultValue: true });
-    const retentionItem = storage.defineItem<RetentionDays>("local:workser_metrics_retention_days", { defaultValue: 90 });
-    const metricsItem   = storage.defineItem<MetricsStore>("local:workser_metrics", { defaultValue: buildEmptyMetrics() });
 
     let blockedCompanies: string[] = [];
     let blockedKeywords:  string[] = [];
     let currentMode: "hide" | "blur" = "hide";
     let isEnabled = true;
-    let metricsRetentionDays: RetentionDays = 90;
 
     // Inyectar CSS global para los modos de ocultación
     const styleEl = document.createElement('style');
@@ -98,60 +42,19 @@ export default defineContentScript({
     `;
     document.head.appendChild(styleEl);
 
-    // Sumar N al contador — UNA sola lectura+escritura para evitar race condition
-    async function addToCounter(n: number) {
-      if (n <= 0) return;
-      const current = await counterItem.getValue() ?? 0;
-      await counterItem.setValue(current + n);
-    }
-
-    async function addToMetrics(hiddenNow: number, siteKey: SiteKey, ruleHits: Record<string, number>) {
-      if (hiddenNow <= 0) return;
-
-      const metrics = (await metricsItem.getValue()) ?? buildEmptyMetrics();
-      const dateKey = getDateKey();
-
-      metrics.totalHidden += hiddenNow;
-
-      const today = metrics.daily[dateKey] ?? buildEmptyDaily();
-      today.hidden += hiddenNow;
-      today.bySite[siteKey] += hiddenNow;
-      metrics.daily[dateKey] = today;
-
-      Object.entries(ruleHits).forEach(([rule, count]) => {
-        metrics.ruleHits[rule] = (metrics.ruleHits[rule] ?? 0) + count;
-      });
-
-      metrics.daily = pruneDailyMetrics(metrics.daily, metricsRetentionDays);
-
-      await metricsItem.setValue(metrics);
-    }
-
-    let writeQueue = Promise.resolve();
-
     function enqueueCounters(hiddenNow: number, siteKey: SiteKey, ruleHits: Record<string, number>) {
       if (hiddenNow <= 0) return;
 
-      writeQueue = writeQueue
-        .then(async () => {
-          await addToCounter(hiddenNow);
-          await addToMetrics(hiddenNow, siteKey, ruleHits);
-        })
-        .catch((err) => {
-          console.error("Workser metrics update failed", err);
-        });
-    }
-
-    function enqueueMetricsPrune() {
-      writeQueue = writeQueue
-        .then(async () => {
-          const metrics = (await metricsItem.getValue()) ?? buildEmptyMetrics();
-          metrics.daily = pruneDailyMetrics(metrics.daily, metricsRetentionDays);
-          await metricsItem.setValue(metrics);
-        })
-        .catch((err) => {
-          console.error("Workser metrics prune failed", err);
-        });
+      browser.runtime.sendMessage({
+        type: "workser:record-hidden",
+        payload: {
+          hiddenNow,
+          siteKey,
+          ruleHits,
+        },
+      }).catch(() => {
+        // Ignorar errores de mensajería para no interrumpir el filtrado.
+      });
     }
 
     function getMatchedRule(text: string): string | null {
@@ -234,7 +137,6 @@ export default defineContentScript({
       blockedKeywords  = (await keywordsItem.getValue()  ?? []).map(k => k.toLowerCase());
       currentMode      = (await modeItem.getValue()) ?? "hide";
       isEnabled        = (await enabledItem.getValue()) ?? true;
-      metricsRetentionDays = normalizeRetentionDays(await retentionItem.getValue());
       document.body.dataset.workserMode = currentMode;
       document.body.dataset.workserEnabled = isEnabled ? "true" : "false";
 
@@ -255,10 +157,6 @@ export default defineContentScript({
         isEnabled = val ?? true;
         document.body.dataset.workserEnabled = isEnabled ? "true" : "false";
         scanAndCount();
-      });
-      retentionItem.watch((val) => {
-        metricsRetentionDays = normalizeRetentionDays(val);
-        enqueueMetricsPrune();
       });
 
       await scanAndCount();

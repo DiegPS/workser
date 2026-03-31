@@ -5,6 +5,6 @@ export default defineConfig({
   manifest: {
     name: 'Workser',
     description: 'Oculta ofertas de empleo de empresas o palabras clave que no te interesan.',
-    permissions: ['storage'],
+    permissions: ['storage', 'tabs'],
   },
 });
