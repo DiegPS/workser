@@ -335,6 +335,16 @@ body {
   color: #c9d1d9;
 }
 
+.settings-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-title svg {
+  color: #79c0ff;
+}
+
 .settings-tag {
   font-size: 10px;
   color: #79c0ff;
