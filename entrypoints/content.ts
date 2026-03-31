@@ -39,19 +39,28 @@ export default defineContentScript({
       await counterItem.setValue(current + n);
     }
 
-    // Devuelve true si la tarjeta fue ocultada ahora, false si ya lo estaba
-    function tryHideCard(node: HTMLElement): boolean {
-      // Evitar ocultar dos veces en la misma sesión de DOM
-      if (node.dataset.workserBlocked === "true") return false;
-
+    function matchesBlockedRule(node: HTMLElement): boolean {
       const text = node.innerText?.toLowerCase() ?? "";
       if (!text) return false;
 
-      const matches =
+      return (
         blockedCompanies.some(c => c && text.includes(c)) ||
-        blockedKeywords.some(k => k && text.includes(k));
+        blockedKeywords.some(k => k && text.includes(k))
+      );
+    }
 
-      if (!matches) return false;
+    // Aplica el estado bloqueado/desbloqueado según filtros actuales
+    // Devuelve true solo si la tarjeta pasó de visible a bloqueada en esta pasada
+    function reconcileCardState(node: HTMLElement): boolean {
+      const matches = matchesBlockedRule(node);
+      const isBlocked = node.dataset.workserBlocked === "true";
+
+      if (!matches) {
+        if (isBlocked) delete node.dataset.workserBlocked;
+        return false;
+      }
+
+      if (isBlocked) return false;
 
       node.dataset.workserBlocked = "true";
       return true;
@@ -59,8 +68,6 @@ export default defineContentScript({
 
     // Escanea todos los trabajos y devuelve cuántos ocultó en esta pasada
     function cleanJobs(): number {
-      if (!blockedCompanies.length && !blockedKeywords.length) return 0;
-
       const host = location.hostname;
       let selectors = "";
 
@@ -72,7 +79,7 @@ export default defineContentScript({
 
       let hiddenNow = 0;
       document.querySelectorAll<HTMLElement>(selectors).forEach(card => {
-        if (tryHideCard(card)) hiddenNow++;
+        if (reconcileCardState(card)) hiddenNow++;
       });
       return hiddenNow;
     }
