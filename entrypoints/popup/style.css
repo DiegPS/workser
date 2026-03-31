@@ -426,6 +426,11 @@ body {
   box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
 }
 
+.input-group input.has-error {
+  border-color: #f85149;
+  box-shadow: 0 0 0 3px rgba(248, 81, 73, 0.12);
+}
+
 .input-group button {
   background: #238636;
   color: white;
@@ -441,6 +446,19 @@ body {
 }
 
 .input-group button:hover { background: #2ea043; }
+
+.input-group button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #1f6f31;
+}
+
+.input-error {
+  margin-top: -4px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: #f85149;
+}
 
 /* ── List items ── */
 .list-item {

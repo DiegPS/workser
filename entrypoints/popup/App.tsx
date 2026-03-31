@@ -118,6 +118,17 @@ function normalizeRetentionDays(value: number | null | undefined): RetentionDays
   return 90;
 }
 
+function getSpanishGroupKey(item: string): string {
+  const first = item.trim().charAt(0);
+  if (!first) return "#";
+
+  const upper = first.toLocaleUpperCase("es-ES");
+  if (upper === "Ñ") return "Ñ";
+
+  const normalized = upper.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return /^[A-Z]$/.test(normalized) ? normalized : "#";
+}
+
 export default function App() {
   const [companies, setCompanies] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -128,6 +139,7 @@ export default function App() {
   const [metricsRetentionDays, setMetricsRetentionDays] = useState<RetentionDays>(90);
   const [activeTab, setActiveTab] = useState<"companies" | "keywords">("companies");
   const [inputValue, setInputValue] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
   const [listSearch, setListSearch] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("recent");
   const [editingItem, setEditingItem] = useState<string | null>(null);
@@ -189,6 +201,7 @@ export default function App() {
   useEffect(() => {
     setEditingItem(null);
     setEditingValue("");
+    setAddError(null);
   }, [activeTab]);
 
   const last7Keys = useMemo(() => getLastDaysKeys(7), []);
@@ -238,21 +251,30 @@ export default function App() {
 
   const handleAdd = () => {
     const val = normalizeRuleValue(inputValue);
-    if (!val) return;
+    if (!val) {
+      setAddError(activeTab === "companies" ? "Escribe una empresa valida." : "Escribe una palabra valida.");
+      return;
+    }
 
     if (activeTab === "companies") {
-      if (!companies.includes(val)) {
-        const updated = normalizeRulesList([...companies, val]);
-        setCompanies(updated);
-        companiesStorage.setValue(updated);
+      if (companies.includes(val)) {
+        setAddError("Esa empresa ya existe en la lista.");
+        return;
       }
+      const updated = normalizeRulesList([...companies, val]);
+      setCompanies(updated);
+      companiesStorage.setValue(updated);
     } else {
-      if (!keywords.includes(val)) {
-        const updated = normalizeRulesList([...keywords, val]);
-        setKeywords(updated);
-        keywordsStorage.setValue(updated);
+      if (keywords.includes(val)) {
+        setAddError("Esa palabra ya existe en la lista.");
+        return;
       }
+      const updated = normalizeRulesList([...keywords, val]);
+      setKeywords(updated);
+      keywordsStorage.setValue(updated);
     }
+
+    setAddError(null);
     setInputValue("");
   };
 
@@ -317,8 +339,7 @@ export default function App() {
 
     const groups = new Map<string, string[]>();
     sortedList.forEach((item) => {
-      const first = item[0]?.toUpperCase() ?? "#";
-      const groupKey = /[A-Z]/.test(first) ? first : "#";
+      const groupKey = getSpanishGroupKey(item);
       const groupItems = groups.get(groupKey) ?? [];
       groupItems.push(item);
       groups.set(groupKey, groupItems);
@@ -328,6 +349,7 @@ export default function App() {
   }, [sortedList, sortMode]);
 
   const isMetricsActive = !showSettings && mainTab === "metrics";
+  const canSubmitNewRule = normalizeRuleValue(inputValue).length > 0;
 
   return (
     <div className="app-container">
@@ -514,18 +536,23 @@ export default function App() {
                 <div className="input-group">
                   <input
                     type="text"
+                    className={addError ? "has-error" : ""}
                     placeholder={activeTab === "companies" ? "Ej. Empresa Spam SA" : "Ej. Call Center, Ventas"}
                     value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
+                    onChange={(e) => {
+                      setInputValue(e.target.value);
+                      if (addError) setAddError(null);
+                    }}
                     onKeyDown={(e) => e.key === "Enter" && handleAdd()}
                   />
-                  <button onClick={handleAdd}>
+                  <button onClick={handleAdd} disabled={!canSubmitNewRule}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="12" y1="5" x2="12" y2="19" />
                       <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
                   </button>
                 </div>
+                {addError && <p className="input-error">{addError}</p>}
 
                 {currentList.length === 0 ? (
                   <div className="empty-state">
