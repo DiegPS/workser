@@ -262,7 +262,7 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <div className={`header ${!showSettings && mainTab === "filters" ? "no-divider" : ""}`}>
+      <div className="header">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="app-title">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -322,8 +322,7 @@ export default function App() {
       </div>
 
       {showSettings ? (
-        <div className="content">
-          <h2 style={{ fontSize: "15px", marginBottom: "16px", color: "#c9d1d9" }}>Ajustes</h2>
+        <div className="content settings-content">
           <div className="setting-item" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <span style={{ fontSize: "13px", fontWeight: 500 }}>Modo de Ocultamiento</span>
             <select

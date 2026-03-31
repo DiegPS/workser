@@ -24,12 +24,7 @@ body {
 /* ── Header ── */
 .header {
   padding: 20px 20px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
-}
-
-.header.no-divider {
-  border-bottom: none;
 }
 
 .stats-dual-grid {
@@ -205,6 +200,11 @@ body {
   padding: 16px 20px;
   overflow-y: auto;
   min-height: 0;
+}
+
+.settings-content,
+.metrics-content {
+  padding-top: 1px;
 }
 
 .content::-webkit-scrollbar { width: 5px; }
@@ -517,7 +517,7 @@ body {
 /* ── Settings Button ── */
 .btn-settings {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: #8b949e;
   cursor: pointer;
   padding: 6px;
@@ -528,7 +528,14 @@ body {
   transition: all 0.2s;
 }
 
-.btn-settings:hover, .btn-settings.active {
+.btn-settings:hover {
   color: #c9d1d9;
   background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-settings.active {
+  color: #79c0ff;
+  border-color: rgba(88, 166, 255, 0.55);
+  background: rgba(88, 166, 255, 0.16);
+  box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.2);
 }
