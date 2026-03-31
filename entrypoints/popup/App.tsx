@@ -406,12 +406,17 @@ export default function App() {
           {mainTab === "filters" ? (
             <>
               <div className="tabs">
-                <button className={`tab ${activeTab === "companies" ? "active" : ""}`} onClick={() => setActiveTab("companies")}>
-                  Empresas
-                </button>
-                <button className={`tab ${activeTab === "keywords" ? "active" : ""}`} onClick={() => setActiveTab("keywords")}>
-                  Palabras Clave
-                </button>
+                <div className="tabs-buttons">
+                  <button className={`tab ${activeTab === "companies" ? "active" : ""}`} onClick={() => setActiveTab("companies")}>
+                    Empresas
+                  </button>
+                  <button className={`tab ${activeTab === "keywords" ? "active" : ""}`} onClick={() => setActiveTab("keywords")}>
+                    Palabras Clave
+                  </button>
+                </div>
+                <span className="tabs-count">
+                  {currentList.length} {activeTab === "companies" ? "empresas" : "palabras"}
+                </span>
               </div>
 
               <div className="content">
@@ -438,10 +443,10 @@ export default function App() {
                       <line x1="12" y1="8" x2="12" y2="12" />
                       <line x1="12" y1="16" x2="12.01" y2="16" />
                     </svg>
-                    <p>No hay filtros activos.</p>
+                    <p>No hay filtros activos todavia.</p>
                   </div>
                 ) : (
-                  <div>
+                  <div className="filters-list">
                     {currentList.map((item) => (
                       <div className="list-item" key={item}>
                         <span>{item}</span>

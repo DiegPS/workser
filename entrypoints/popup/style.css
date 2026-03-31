@@ -144,10 +144,27 @@ body {
 /* ── Tabs ── */
 .tabs {
   display: flex;
-  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   padding: 0 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
+}
+
+.tabs-buttons {
+  display: flex;
+  gap: 16px;
+}
+
+.tabs-count {
+  font-size: 10px;
+  color: #8b949e;
+  background: rgba(240, 246, 252, 0.05);
+  border: 1px solid rgba(240, 246, 252, 0.08);
+  border-radius: 999px;
+  padding: 3px 8px;
+  white-space: nowrap;
 }
 
 .header-actions {
@@ -338,7 +355,7 @@ body {
 .input-group {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .input-group input {
@@ -346,8 +363,8 @@ body {
   background: #010409;
   border: 1px solid #30363d;
   color: #c9d1d9;
-  border-radius: 6px;
-  padding: 8px 12px;
+  border-radius: 9px;
+  padding: 9px 12px;
   font-size: 13px;
   transition: border-color 0.2s, box-shadow 0.2s;
   outline: none;
@@ -363,8 +380,8 @@ body {
   background: #238636;
   color: white;
   border: 1px solid rgba(240, 246, 252, 0.1);
-  border-radius: 6px;
-  padding: 8px 14px;
+  border-radius: 9px;
+  padding: 8px 12px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
@@ -380,19 +397,22 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  padding: 9px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed rgba(240, 246, 252, 0.1);
+  border-radius: 0;
+  margin-bottom: 0;
+  transition: border-color 0.15s;
   animation: slideIn 0.25s ease-out;
 }
 
 .list-item:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-  border-color: #6e7681;
+  border-color: rgba(121, 192, 255, 0.55);
+}
+
+.filters-list .list-item:last-child {
+  border-bottom: none;
 }
 
 .list-item span {
@@ -405,11 +425,11 @@ body {
 .btn-remove {
   background: transparent;
   border: none;
-  color: #f85149;
+  color: #f0883e;
   cursor: pointer;
   width: 28px;
   height: 28px;
-  border-radius: 4px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -417,12 +437,12 @@ body {
   flex-shrink: 0;
 }
 
-.btn-remove:hover { background: rgba(248,81,73,0.12); }
+.btn-remove:hover { background: rgba(240,136,62,0.12); }
 
 /* ── Empty state ── */
 .empty-state {
   text-align: center;
-  padding: 32px 0;
+  padding: 28px 0;
   color: #8b949e;
   font-size: 13px;
   display: flex;
