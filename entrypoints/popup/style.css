@@ -270,16 +270,19 @@ body {
 }
 
 .tab {
-  padding: 10px 4px;
+  padding: 9px 4px;
   color: #8b949e;
   background: none;
   border: none;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: color 0.2s, border-color 0.2s;
   font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .tab:hover { color: #c9d1d9; }
