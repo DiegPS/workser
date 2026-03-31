@@ -304,19 +304,20 @@ export default function App() {
         </div>
 
         {!showSettings && mainTab === "filters" && (
-          <div className="stats-dual-grid">
-            <div className="stats-card compact">
-              <div className="stats-info">
+          <div className="home-overview">
+            <div className="home-kpi primary">
+              <div className="kpi-top">
                 <h3>{activeSiteLabel}</h3>
-                <p>{activeSiteCount}</p>
+                <span>7d</span>
               </div>
-              <div className="pulse-circle" />
+              <p>{activeSiteCount}</p>
             </div>
-            <div className="stats-card compact secondary">
-              <div className="stats-info">
+            <div className="home-kpi secondary">
+              <div className="kpi-top">
                 <h3>Total acumulado</h3>
-                <p>{hiddenCount}</p>
+                <span>global</span>
               </div>
+              <p>{hiddenCount}</p>
             </div>
           </div>
         )}
