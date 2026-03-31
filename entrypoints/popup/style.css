@@ -207,6 +207,98 @@ body {
   padding-top: 1px;
 }
 
+.settings-surface {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.settings-panel {
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid rgba(240, 246, 252, 0.08);
+}
+
+.settings-panel:last-child {
+  border-bottom: none;
+}
+
+.settings-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-panel-head h3 {
+  font-size: 12px;
+  color: #c9d1d9;
+}
+
+.settings-tag {
+  font-size: 10px;
+  color: #79c0ff;
+  background: rgba(88, 166, 255, 0.08);
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
+.settings-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f0f6fc;
+}
+
+.settings-hint {
+  font-size: 11px;
+  color: #8b949e;
+  line-height: 1.35;
+}
+
+.segmented-control {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.segmented-control[aria-label="Retencion de metricas"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.segmented-item {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  color: #8b949e;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.segmented-item:hover {
+  color: #c9d1d9;
+  border-color: #6e7681;
+}
+
+.segmented-item.active {
+  color: #79c0ff;
+  border-color: rgba(88, 166, 255, 0.55);
+  background: rgba(88, 166, 255, 0.16);
+  box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.2);
+}
+
 .content::-webkit-scrollbar { width: 5px; }
 .content::-webkit-scrollbar-track { background: transparent; }
 .content::-webkit-scrollbar-thumb {

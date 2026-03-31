@@ -324,61 +324,80 @@ export default function App() {
 
       {showSettings ? (
         <div className="content settings-content">
-          <div className="setting-item" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <span style={{ fontSize: "13px", fontWeight: 500 }}>Modo de Ocultamiento</span>
-            <select
-              value={mode}
-              onChange={(e) => {
-                const m = e.target.value as "hide" | "blur";
-                setMode(m);
-                modeStorage.setValue(m);
-              }}
-              style={{
-                background: "#010409",
-                color: "#c9d1d9",
-                border: "1px solid #30363d",
-                padding: "8px 12px",
-                borderRadius: "6px",
-                outline: "none",
-                cursor: "pointer",
-              }}
-            >
-              <option value="hide">Ocultar por completo (Display None)</option>
-              <option value="blur">Difuminar (Blur)</option>
-            </select>
-            <p style={{ fontSize: "11px", color: "#8b949e", marginTop: "4px", lineHeight: 1.4 }}>
-              {mode === "hide"
-                ? "Mantiene tu feed limpio escondiendo las ofertas por completo."
-                : "Las ofertas seguirán ahí pero estarán difuminadas y casi transparentes."}
-            </p>
-          </div>
+          <div className="settings-surface">
+            <div className="settings-panel">
+              <div className="settings-panel-head">
+                <h3>Estado general</h3>
+              </div>
+              <div className="settings-status-row">
+                <div>
+                  <p className="settings-label">Workser</p>
+                  <p className="settings-hint">{isEnabled ? "Filtrando ofertas activamente" : "Filtrado pausado temporalmente"}</p>
+                </div>
+                <button
+                  className={`power-switch ${isEnabled ? "on" : "off"}`}
+                  onClick={() => enabledStorage.setValue(!isEnabled)}
+                  title={isEnabled ? "Desactivar Workser" : "Activar Workser"}
+                >
+                  <span className="power-label">{isEnabled ? "ON" : "OFF"}</span>
+                  <span className="power-knob" />
+                </button>
+              </div>
+            </div>
 
-          <div className="setting-item" style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "16px" }}>
-            <span style={{ fontSize: "13px", fontWeight: 500 }}>Retención de métricas</span>
-            <select
-              value={metricsRetentionDays}
-              onChange={(e) => {
-                const days = normalizeRetentionDays(Number(e.target.value));
-                setMetricsRetentionDays(days);
-                metricsRetentionStorage.setValue(days);
-              }}
-              style={{
-                background: "#010409",
-                color: "#c9d1d9",
-                border: "1px solid #30363d",
-                padding: "8px 12px",
-                borderRadius: "6px",
-                outline: "none",
-                cursor: "pointer",
-              }}
-            >
-              <option value={30}>30 días</option>
-              <option value={90}>90 días</option>
-              <option value={180}>180 días</option>
-            </select>
-            <p style={{ fontSize: "11px", color: "#8b949e", marginTop: "4px", lineHeight: 1.4 }}>
-              Controla cuántos días conservar para la tendencia y distribución por portal.
-            </p>
+            <div className="settings-panel">
+              <div className="settings-panel-head">
+                <h3>Modo de ocultamiento</h3>
+              </div>
+              <div className="segmented-control" role="tablist" aria-label="Modo de ocultamiento">
+                <button
+                  className={`segmented-item ${mode === "hide" ? "active" : ""}`}
+                  onClick={() => {
+                    setMode("hide");
+                    modeStorage.setValue("hide");
+                  }}
+                >
+                  Ocultar
+                </button>
+                <button
+                  className={`segmented-item ${mode === "blur" ? "active" : ""}`}
+                  onClick={() => {
+                    setMode("blur");
+                    modeStorage.setValue("blur");
+                  }}
+                >
+                  Difuminar
+                </button>
+              </div>
+              <p className="settings-hint">
+                {mode === "hide"
+                  ? "Oculta completamente las ofertas bloqueadas para mantener el feed limpio."
+                  : "Mantiene visibles las ofertas bloqueadas, pero con blur y baja opacidad."}
+              </p>
+            </div>
+
+            <div className="settings-panel">
+              <div className="settings-panel-head">
+                <h3>Retencion de metricas</h3>
+                <span className="settings-tag">Actual: {metricsRetentionDays}d</span>
+              </div>
+              <div className="segmented-control" role="tablist" aria-label="Retencion de metricas">
+                {[30, 90, 180].map((days) => (
+                  <button
+                    key={days}
+                    className={`segmented-item ${metricsRetentionDays === days ? "active" : ""}`}
+                    onClick={() => {
+                      const normalized = normalizeRetentionDays(days);
+                      setMetricsRetentionDays(normalized);
+                      metricsRetentionStorage.setValue(normalized);
+                    }}
+                  >
+                    {days}d
+                  </button>
+                ))}
+              </div>
+              <p className="settings-hint">Define cuanta historia conservar para tendencia y distribucion por portal.</p>
+            </div>
           </div>
         </div>
       ) : (
