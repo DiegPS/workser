@@ -218,6 +218,7 @@ export default function App() {
   }, [metrics.ruleHits]);
 
   const maxRuleHits = useMemo(() => Math.max(1, ...topRules.map(([, hits]) => hits)), [topRules]);
+  const weekSiteTotal = useMemo(() => bySite.reduce((acc, site) => acc + site.count, 0), [bySite]);
   const activeSiteCount = useMemo(() => {
     if (!activeSite) return 0;
     return bySite.find((site) => site.key === activeSite)?.count ?? 0;
@@ -440,80 +441,92 @@ export default function App() {
             </>
           ) : (
             <div className="content metrics-content">
-              <div className="metrics-grid">
-                <div className="metric-panel">
-                  <h3>Impacto</h3>
-                  <div className="impact-list">
-                    <div className="impact-item">
-                      <span>Hoy</span>
-                      <strong>{todayHidden}</strong>
-                    </div>
-                    <div className="impact-item">
-                      <span>Semana</span>
-                      <strong>{weekHidden}</strong>
-                    </div>
-                    <div className="impact-item">
-                      <span>Total</span>
-                      <strong>{metrics.totalHidden}</strong>
-                    </div>
+              <div className="analytics-surface">
+                <div className="analytics-summary">
+                  <div className="summary-item">
+                    <span>Hoy</span>
+                    <strong>{todayHidden}</strong>
+                  </div>
+                  <div className="summary-item">
+                    <span>Semana</span>
+                    <strong>{weekHidden}</strong>
+                  </div>
+                  <div className="summary-item">
+                    <span>Total</span>
+                    <strong>{metrics.totalHidden}</strong>
                   </div>
                 </div>
 
-                <div className="metric-panel">
-                  <h3>Distribución por portal (7d)</h3>
-                  <div className="site-list">
-                    {bySite.map((site) => (
-                      <div className="site-row" key={site.key}>
-                        <span>{site.label}</span>
-                        <strong>{site.count}</strong>
-                      </div>
-                    ))}
+                <div className="analytics-section">
+                  <div className="analytics-section-head">
+                    <h3>Tendencia (7 días)</h3>
+                    <span>{metricsRetentionDays}d de retención</span>
+                  </div>
+                  <div className="trend-meta">
+                    <span>Total semana: {weekHidden}</span>
+                    <span>Pico diario: {maxTrend}</span>
+                  </div>
+                  <div className="sparkline">
+                    {trendData.map((item, index) => {
+                      const height = Math.max(6, Math.round((item.value / maxTrend) * 100));
+                      const isToday = index === trendData.length - 1;
+                      return (
+                        <div className={`sparkline-col ${isToday ? "is-today" : ""}`} key={item.key} title={`${item.label}: ${item.value}`}>
+                          <div className="sparkline-value">{item.value}</div>
+                          <div className="sparkline-track">
+                            <div className="sparkline-bar" style={{ height: `${height}%` }} />
+                          </div>
+                          <span>{item.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
 
-              <div className="metric-panel">
-                <h3>Tendencia (7 días)</h3>
-                <div className="trend-meta">
-                  <span>Total semana: {weekHidden}</span>
-                  <span>Pico diario: {maxTrend}</span>
-                </div>
-                <div className="sparkline">
-                  {trendData.map((item, index) => {
-                    const height = Math.max(6, Math.round((item.value / maxTrend) * 100));
-                    const isToday = index === trendData.length - 1;
-                    return (
-                      <div className={`sparkline-col ${isToday ? "is-today" : ""}`} key={item.key} title={`${item.label}: ${item.value}`}>
-                        <div className="sparkline-value">{item.value}</div>
-                        <div className="sparkline-track">
-                          <div className="sparkline-bar" style={{ height: `${height}%` }} />
-                        </div>
-                        <span>{item.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="metric-panel">
-                <h3>Top reglas</h3>
-                {topRules.length === 0 ? (
-                  <p className="muted">Aun no hay datos suficientes.</p>
-                ) : (
-                  <div className="rule-list chart-list">
-                    {topRules.map(([rule, hits]) => (
-                      <div className="rule-row chart-row" key={rule}>
-                        <div className="chart-row-head">
-                          <span>{prettyRuleLabel(rule)}</span>
-                          <strong>{hits}</strong>
-                        </div>
-                        <div className="chart-track rule-track">
-                          <div className="chart-fill rule-fill" style={{ width: `${Math.round((hits / maxRuleHits) * 100)}%` }} />
-                        </div>
-                      </div>
-                    ))}
+                <div className="analytics-split">
+                  <div className="analytics-section">
+                    <div className="analytics-section-head">
+                      <h3>Distribución por portal (7d)</h3>
+                    </div>
+                    <div className="site-list">
+                      {bySite.map((site) => {
+                        const pct = weekSiteTotal > 0 ? Math.round((site.count / weekSiteTotal) * 100) : 0;
+                        return (
+                          <div className="site-row" key={site.key}>
+                            <span>{site.label}</span>
+                            <div className="row-right">
+                              <em>{pct}%</em>
+                              <strong>{site.count}</strong>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                )}
+
+                  <div className="analytics-section">
+                    <div className="analytics-section-head">
+                      <h3>Top reglas</h3>
+                    </div>
+                    {topRules.length === 0 ? (
+                      <p className="muted">Aun no hay datos suficientes.</p>
+                    ) : (
+                      <div className="rule-list chart-list">
+                        {topRules.map(([rule, hits], index) => (
+                          <div className="rule-row chart-row" key={rule}>
+                            <div className="chart-row-head">
+                              <span className="rule-label"><b>#{index + 1}</b> {prettyRuleLabel(rule)}</span>
+                              <strong>{hits}</strong>
+                            </div>
+                            <div className="chart-track rule-track">
+                              <div className="chart-fill rule-fill" style={{ width: `${Math.round((hits / maxRuleHits) * 100)}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
