@@ -73,6 +73,24 @@ function prettyRuleLabel(rule: string): string {
   return rule;
 }
 
+function normalizeRuleValue(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function normalizeRulesList(values: string[] | null | undefined): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  (values ?? []).forEach((value) => {
+    const clean = normalizeRuleValue(value);
+    if (!clean || seen.has(clean)) return;
+    seen.add(clean);
+    normalized.push(clean);
+  });
+
+  return normalized;
+}
+
 export default function App() {
   const [companies, setCompanies] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -85,14 +103,28 @@ export default function App() {
   const [metrics, setMetrics] = useState<MetricsStore>({ totalHidden: 0, daily: {}, ruleHits: {} });
 
   useEffect(() => {
-    companiesStorage.getValue().then(setCompanies);
-    keywordsStorage.getValue().then(setKeywords);
+    companiesStorage.getValue().then((val) => {
+      const normalized = normalizeRulesList(val);
+      setCompanies(normalized);
+      if (JSON.stringify(val ?? []) !== JSON.stringify(normalized)) {
+        companiesStorage.setValue(normalized);
+      }
+    });
+
+    keywordsStorage.getValue().then((val) => {
+      const normalized = normalizeRulesList(val);
+      setKeywords(normalized);
+      if (JSON.stringify(val ?? []) !== JSON.stringify(normalized)) {
+        keywordsStorage.setValue(normalized);
+      }
+    });
+
     counterStorage.getValue().then(setHiddenCount);
     modeStorage.getValue().then((val) => setMode(val ?? "hide"));
     metricsStorage.getValue().then((val) => setMetrics(val ?? { totalHidden: 0, daily: {}, ruleHits: {} }));
 
-    const unsubCompanies = companiesStorage.watch((val) => setCompanies(val ?? []));
-    const unsubKeywords = keywordsStorage.watch((val) => setKeywords(val ?? []));
+    const unsubCompanies = companiesStorage.watch((val) => setCompanies(normalizeRulesList(val)));
+    const unsubKeywords = keywordsStorage.watch((val) => setKeywords(normalizeRulesList(val)));
     const unsubCounter = counterStorage.watch((val) => setHiddenCount(val ?? 0));
     const unsubMode = modeStorage.watch((val) => setMode(val ?? "hide"));
     const unsubMetrics = metricsStorage.watch((val) => setMetrics(val ?? { totalHidden: 0, daily: {}, ruleHits: {} }));
@@ -144,18 +176,18 @@ export default function App() {
   }, [metrics.ruleHits]);
 
   const handleAdd = () => {
-    const val = inputValue.trim();
+    const val = normalizeRuleValue(inputValue);
     if (!val) return;
 
     if (activeTab === "companies") {
       if (!companies.includes(val)) {
-        const updated = [...companies, val];
+        const updated = normalizeRulesList([...companies, val]);
         setCompanies(updated);
         companiesStorage.setValue(updated);
       }
     } else {
       if (!keywords.includes(val)) {
-        const updated = [...keywords, val];
+        const updated = normalizeRulesList([...keywords, val]);
         setKeywords(updated);
         keywordsStorage.setValue(updated);
       }
