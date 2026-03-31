@@ -31,6 +31,9 @@ export default defineContentScript({
       [data-workser-blocked="true"] {
         transition: filter 0.3s, opacity 0.3s;
       }
+      .cardOutline[data-workser-blocked="true"] {
+        display: none !important;
+      }
       body[data-workser-mode="hide"] [data-workser-blocked="true"] {
         display: none !important;
       }
@@ -101,15 +104,42 @@ export default defineContentScript({
       const siteKey = getSiteKey(host);
       let selectors = "";
 
-      if (host.includes("indeed.com"))            selectors = ".job_seen_beacon";
+      if (host.includes("indeed.com"))            selectors = ".cardOutline";
       else if (host.includes("linkedin.com"))      selectors = ".jobs-search-results__list-item, .scaffold-layout__list-item, .job-card-container, .job-search-card, div[data-component-type='LazyColumn'] > div[data-display-contents='true']";
       else if (host.includes("computrabajo.com"))  selectors = ".box_offer";
 
       if (!selectors) return { hiddenNow: 0, siteKey, ruleHits: {} };
 
+      const resolveCardNode = (node: HTMLElement): HTMLElement => {
+        if (host.includes("linkedin.com")) {
+          return (
+            node.closest<HTMLElement>(
+              "li, .jobs-search-results__list-item, .scaffold-layout__list-item, .job-card-container, .job-search-card"
+            ) ?? node
+          );
+        }
+        if (host.includes("indeed.com")) {
+          return (
+            node.closest<HTMLElement>(
+              ".cardOutline"
+            ) ?? node
+          );
+        }
+        if (host.includes("computrabajo.com")) {
+          return node.closest<HTMLElement>(".box_offer") ?? node;
+        }
+        return node;
+      };
+
       let hiddenNow = 0;
       const ruleHits: Record<string, number> = {};
-      document.querySelectorAll<HTMLElement>(selectors).forEach(card => {
+      const visited = new Set<HTMLElement>();
+
+      document.querySelectorAll<HTMLElement>(selectors).forEach(rawCard => {
+        const card = resolveCardNode(rawCard);
+        if (visited.has(card)) return;
+        visited.add(card);
+
         const result = reconcileCardState(card);
         if (!result.blockedNow) return;
         hiddenNow++;
