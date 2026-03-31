@@ -4,8 +4,11 @@ const blockedCompaniesKey = "local:blocked_companies";
 const blockedKeywordsKey = "local:blocked_keywords";
 const hiddenCountKey = "local:workser_hidden_count";
 const modeKey = "local:workser_mode";
+const enabledKey = "local:workser_enabled";
+const metricsRetentionKey = "local:workser_metrics_retention_days";
 
 type SiteKey = "linkedin" | "indeed" | "computrabajo" | "other";
+type RetentionDays = 30 | 90 | 180;
 
 type DailyMetrics = {
   hidden: number;
@@ -30,6 +33,8 @@ const companiesStorage = storage.defineItem<string[]>(blockedCompaniesKey, { def
 const keywordsStorage = storage.defineItem<string[]>(blockedKeywordsKey, { defaultValue: [] });
 const counterStorage = storage.defineItem<number>(hiddenCountKey, { defaultValue: 0 });
 const modeStorage = storage.defineItem<"hide" | "blur">(modeKey, { defaultValue: "hide" });
+const enabledStorage = storage.defineItem<boolean>(enabledKey, { defaultValue: true });
+const metricsRetentionStorage = storage.defineItem<RetentionDays>(metricsRetentionKey, { defaultValue: 90 });
 const metricsStorage = storage.defineItem<MetricsStore>(metricsKey, {
   defaultValue: {
     totalHidden: 0,
@@ -91,12 +96,19 @@ function normalizeRulesList(values: string[] | null | undefined): string[] {
   return normalized;
 }
 
+function normalizeRetentionDays(value: number | null | undefined): RetentionDays {
+  if (value === 30 || value === 180) return value;
+  return 90;
+}
+
 export default function App() {
   const [companies, setCompanies] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [hiddenCount, setHiddenCount] = useState(0);
   const [mode, setMode] = useState<"hide" | "blur">("hide");
   const [showSettings, setShowSettings] = useState(false);
+  const [isEnabled, setIsEnabled] = useState(true);
+  const [metricsRetentionDays, setMetricsRetentionDays] = useState<RetentionDays>(90);
   const [activeTab, setActiveTab] = useState<"companies" | "keywords">("companies");
   const [inputValue, setInputValue] = useState("");
   const [mainTab, setMainTab] = useState<"filters" | "metrics">("filters");
@@ -121,12 +133,16 @@ export default function App() {
 
     counterStorage.getValue().then(setHiddenCount);
     modeStorage.getValue().then((val) => setMode(val ?? "hide"));
+    enabledStorage.getValue().then((val) => setIsEnabled(val ?? true));
+    metricsRetentionStorage.getValue().then((val) => setMetricsRetentionDays(normalizeRetentionDays(val)));
     metricsStorage.getValue().then((val) => setMetrics(val ?? { totalHidden: 0, daily: {}, ruleHits: {} }));
 
     const unsubCompanies = companiesStorage.watch((val) => setCompanies(normalizeRulesList(val)));
     const unsubKeywords = keywordsStorage.watch((val) => setKeywords(normalizeRulesList(val)));
     const unsubCounter = counterStorage.watch((val) => setHiddenCount(val ?? 0));
     const unsubMode = modeStorage.watch((val) => setMode(val ?? "hide"));
+    const unsubEnabled = enabledStorage.watch((val) => setIsEnabled(val ?? true));
+    const unsubRetention = metricsRetentionStorage.watch((val) => setMetricsRetentionDays(normalizeRetentionDays(val)));
     const unsubMetrics = metricsStorage.watch((val) => setMetrics(val ?? { totalHidden: 0, daily: {}, ruleHits: {} }));
 
     return () => {
@@ -134,6 +150,8 @@ export default function App() {
       unsubKeywords();
       unsubCounter();
       unsubMode();
+      unsubEnabled();
+      unsubRetention();
       unsubMetrics();
     };
   }, []);
@@ -175,6 +193,8 @@ export default function App() {
       .slice(0, 5);
   }, [metrics.ruleHits]);
 
+  const maxRuleHits = useMemo(() => Math.max(1, ...topRules.map(([, hits]) => hits)), [topRules]);
+
   const handleAdd = () => {
     const val = normalizeRuleValue(inputValue);
     if (!val) return;
@@ -213,7 +233,7 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <div className="header">
+      <div className={`header ${!showSettings && mainTab === "filters" ? "no-divider" : ""}`}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="app-title">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -235,6 +255,14 @@ export default function App() {
                 <line x1="12" y1="20" x2="12" y2="4" />
                 <line x1="6" y1="20" x2="6" y2="14" />
               </svg>
+            </button>
+            <button
+              className={`power-switch ${isEnabled ? "on" : "off"}`}
+              onClick={() => enabledStorage.setValue(!isEnabled)}
+              title={isEnabled ? "Desactivar Workser" : "Activar Workser"}
+            >
+              <span className="power-label">{isEnabled ? "ON" : "OFF"}</span>
+              <span className="power-knob" />
             </button>
             <button className={`btn-settings ${showSettings ? "active" : ""}`} onClick={() => setShowSettings(!showSettings)} title="Ajustes">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -295,6 +323,34 @@ export default function App() {
               {mode === "hide"
                 ? "Mantiene tu feed limpio escondiendo las ofertas por completo."
                 : "Las ofertas seguirán ahí pero estarán difuminadas y casi transparentes."}
+            </p>
+          </div>
+
+          <div className="setting-item" style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "16px" }}>
+            <span style={{ fontSize: "13px", fontWeight: 500 }}>Retención de métricas</span>
+            <select
+              value={metricsRetentionDays}
+              onChange={(e) => {
+                const days = normalizeRetentionDays(Number(e.target.value));
+                setMetricsRetentionDays(days);
+                metricsRetentionStorage.setValue(days);
+              }}
+              style={{
+                background: "#010409",
+                color: "#c9d1d9",
+                border: "1px solid #30363d",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                outline: "none",
+                cursor: "pointer",
+              }}
+            >
+              <option value={30}>30 días</option>
+              <option value={90}>90 días</option>
+              <option value={180}>180 días</option>
+            </select>
+            <p style={{ fontSize: "11px", color: "#8b949e", marginTop: "4px", lineHeight: 1.4 }}>
+              Controla cuántos días conservar para la tendencia y distribución por portal.
             </p>
           </div>
         </div>
@@ -418,11 +474,16 @@ export default function App() {
                 {topRules.length === 0 ? (
                   <p className="muted">Aun no hay datos suficientes.</p>
                 ) : (
-                  <div className="rule-list">
+                  <div className="rule-list chart-list">
                     {topRules.map(([rule, hits]) => (
-                      <div className="rule-row" key={rule}>
-                        <span>{prettyRuleLabel(rule)}</span>
-                        <strong>{hits}</strong>
+                      <div className="rule-row chart-row" key={rule}>
+                        <div className="chart-row-head">
+                          <span>{prettyRuleLabel(rule)}</span>
+                          <strong>{hits}</strong>
+                        </div>
+                        <div className="chart-track rule-track">
+                          <div className="chart-fill rule-fill" style={{ width: `${Math.round((hits / maxRuleHits) * 100)}%` }} />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -434,7 +495,7 @@ export default function App() {
       )}
 
       <div className="footer">
-        <span>Workser Shield Active</span>
+        <span>{isEnabled ? "Workser Shield Active" : "Workser Shield Paused"}</span>
         <span>v0.0.1</span>
       </div>
     </div>

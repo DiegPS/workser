@@ -7,6 +7,7 @@ export default defineContentScript({
 
   main() {
     type SiteKey = "linkedin" | "indeed" | "computrabajo" | "other";
+    type RetentionDays = 30 | 90 | 180;
 
     type DailyMetrics = {
       hidden: number;
@@ -49,15 +50,36 @@ export default defineContentScript({
       return "other";
     };
 
+    const normalizeRetentionDays = (value: number | null | undefined): RetentionDays => {
+      if (value === 30 || value === 180) return value;
+      return 90;
+    };
+
+    const pruneDailyMetrics = (daily: Record<string, DailyMetrics>, retentionDays: RetentionDays): Record<string, DailyMetrics> => {
+      const threshold = new Date();
+      threshold.setDate(threshold.getDate() - retentionDays);
+      const thresholdKey = getDateKey(threshold);
+
+      const pruned: Record<string, DailyMetrics> = {};
+      Object.entries(daily).forEach(([key, value]) => {
+        if (key >= thresholdKey) pruned[key] = value;
+      });
+      return pruned;
+    };
+
     const companiesItem = storage.defineItem<string[]>("local:blocked_companies", { defaultValue: [] });
     const keywordsItem  = storage.defineItem<string[]>("local:blocked_keywords",  { defaultValue: [] });
     const counterItem   = storage.defineItem<number>("local:workser_hidden_count", { defaultValue: 0  });
     const modeItem      = storage.defineItem<"hide" | "blur">("local:workser_mode", { defaultValue: "hide" });
+    const enabledItem   = storage.defineItem<boolean>("local:workser_enabled", { defaultValue: true });
+    const retentionItem = storage.defineItem<RetentionDays>("local:workser_metrics_retention_days", { defaultValue: 90 });
     const metricsItem   = storage.defineItem<MetricsStore>("local:workser_metrics", { defaultValue: buildEmptyMetrics() });
 
     let blockedCompanies: string[] = [];
     let blockedKeywords:  string[] = [];
     let currentMode: "hide" | "blur" = "hide";
+    let isEnabled = true;
+    let metricsRetentionDays: RetentionDays = 90;
 
     // Inyectar CSS global para los modos de ocultación
     const styleEl = document.createElement('style');
@@ -100,13 +122,7 @@ export default defineContentScript({
         metrics.ruleHits[rule] = (metrics.ruleHits[rule] ?? 0) + count;
       });
 
-      const retentionDays = 90;
-      const threshold = new Date();
-      threshold.setDate(threshold.getDate() - retentionDays);
-      const thresholdKey = getDateKey(threshold);
-      Object.keys(metrics.daily).forEach((key) => {
-        if (key < thresholdKey) delete metrics.daily[key];
-      });
+      metrics.daily = pruneDailyMetrics(metrics.daily, metricsRetentionDays);
 
       await metricsItem.setValue(metrics);
     }
@@ -123,6 +139,18 @@ export default defineContentScript({
         })
         .catch((err) => {
           console.error("Workser metrics update failed", err);
+        });
+    }
+
+    function enqueueMetricsPrune() {
+      writeQueue = writeQueue
+        .then(async () => {
+          const metrics = (await metricsItem.getValue()) ?? buildEmptyMetrics();
+          metrics.daily = pruneDailyMetrics(metrics.daily, metricsRetentionDays);
+          await metricsItem.setValue(metrics);
+        })
+        .catch((err) => {
+          console.error("Workser metrics prune failed", err);
         });
     }
 
@@ -150,7 +178,7 @@ export default defineContentScript({
     // Devuelve true solo si la tarjeta pasó de visible a bloqueada en esta pasada
     function reconcileCardState(node: HTMLElement): { blockedNow: boolean; matchedRule: string | null } {
       const text = node.innerText?.toLowerCase() ?? "";
-      const matches = text ? matchesBlockedRule(node) : false;
+      const matches = isEnabled && text ? matchesBlockedRule(node) : false;
       const isBlocked = node.dataset.workserBlocked === "true";
 
       if (!matches) {
@@ -205,7 +233,10 @@ export default defineContentScript({
       blockedCompanies = (await companiesItem.getValue() ?? []).map(c => c.toLowerCase());
       blockedKeywords  = (await keywordsItem.getValue()  ?? []).map(k => k.toLowerCase());
       currentMode      = (await modeItem.getValue()) ?? "hide";
+      isEnabled        = (await enabledItem.getValue()) ?? true;
+      metricsRetentionDays = normalizeRetentionDays(await retentionItem.getValue());
       document.body.dataset.workserMode = currentMode;
+      document.body.dataset.workserEnabled = isEnabled ? "true" : "false";
 
       // Reaccionar si el usuario cambia los filtros desde el popup
       companiesItem.watch((val) => {
@@ -219,6 +250,15 @@ export default defineContentScript({
       modeItem.watch((val) => {
         currentMode = val ?? "hide";
         document.body.dataset.workserMode = currentMode;
+      });
+      enabledItem.watch((val) => {
+        isEnabled = val ?? true;
+        document.body.dataset.workserEnabled = isEnabled ? "true" : "false";
+        scanAndCount();
+      });
+      retentionItem.watch((val) => {
+        metricsRetentionDays = normalizeRetentionDays(val);
+        enqueueMetricsPrune();
       });
 
       await scanAndCount();
