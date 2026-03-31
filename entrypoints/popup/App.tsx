@@ -126,6 +126,7 @@ export default function App() {
   const [metricsRetentionDays, setMetricsRetentionDays] = useState<RetentionDays>(90);
   const [activeTab, setActiveTab] = useState<"companies" | "keywords">("companies");
   const [inputValue, setInputValue] = useState("");
+  const [listSearch, setListSearch] = useState("");
   const [mainTab, setMainTab] = useState<"filters" | "metrics">("filters");
   const [metrics, setMetrics] = useState<MetricsStore>({ totalHidden: 0, daily: {}, ruleHits: {} });
   const [activeSite, setActiveSite] = useState<ActiveSite>(null);
@@ -258,6 +259,11 @@ export default function App() {
   };
 
   const currentList = activeTab === "companies" ? companies : keywords;
+  const filteredList = useMemo(() => {
+    const search = normalizeRuleValue(listSearch);
+    if (!search) return currentList;
+    return currentList.filter((item) => item.includes(search));
+  }, [currentList, listSearch]);
 
   const isMetricsActive = !showSettings && mainTab === "metrics";
 
@@ -415,11 +421,21 @@ export default function App() {
                   </button>
                 </div>
                 <span className="tabs-count">
-                  {currentList.length} {activeTab === "companies" ? "empresas" : "palabras"}
+                  {filteredList.length}/{currentList.length} {activeTab === "companies" ? "empresas" : "palabras"}
                 </span>
               </div>
 
               <div className="content">
+                <div className="list-search-wrap">
+                  <input
+                    className="list-search"
+                    type="text"
+                    placeholder={activeTab === "companies" ? "Buscar empresa..." : "Buscar palabra..."}
+                    value={listSearch}
+                    onChange={(e) => setListSearch(e.target.value)}
+                  />
+                </div>
+
                 <div className="input-group">
                   <input
                     type="text"
@@ -445,9 +461,17 @@ export default function App() {
                     </svg>
                     <p>No hay filtros activos todavia.</p>
                   </div>
+                ) : filteredList.length === 0 ? (
+                  <div className="empty-state">
+                    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <p>Sin resultados para esa busqueda.</p>
+                  </div>
                 ) : (
                   <div className="filters-list">
-                    {currentList.map((item) => (
+                    {filteredList.map((item) => (
                       <div className="list-item" key={item}>
                         <span>{item}</span>
                         <button className="btn-remove" onClick={() => handleRemove(item)} title="Eliminar">

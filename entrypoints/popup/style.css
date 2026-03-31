@@ -167,6 +167,27 @@ body {
   white-space: nowrap;
 }
 
+.list-search-wrap {
+  margin-bottom: 10px;
+}
+
+.list-search {
+  width: 100%;
+  background: #0b0f14;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+  border-radius: 8px;
+  padding: 7px 11px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.list-search:focus {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
 .header-actions {
   display: flex;
   align-items: center;
