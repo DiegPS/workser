@@ -6,10 +6,54 @@ export default defineContentScript({
   ],
 
   main() {
+    type SiteKey = "linkedin" | "indeed" | "computrabajo" | "other";
+
+    type DailyMetrics = {
+      hidden: number;
+      bySite: Record<SiteKey, number>;
+    };
+
+    type MetricsStore = {
+      totalHidden: number;
+      daily: Record<string, DailyMetrics>;
+      ruleHits: Record<string, number>;
+    };
+
+    const buildEmptyDaily = (): DailyMetrics => ({
+      hidden: 0,
+      bySite: {
+        linkedin: 0,
+        indeed: 0,
+        computrabajo: 0,
+        other: 0,
+      },
+    });
+
+    const buildEmptyMetrics = (): MetricsStore => ({
+      totalHidden: 0,
+      daily: {},
+      ruleHits: {},
+    });
+
+    const getDateKey = (date = new Date()): string => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    };
+
+    const getSiteKey = (host: string): SiteKey => {
+      if (host.includes("linkedin.com")) return "linkedin";
+      if (host.includes("indeed.com")) return "indeed";
+      if (host.includes("computrabajo.com")) return "computrabajo";
+      return "other";
+    };
+
     const companiesItem = storage.defineItem<string[]>("local:blocked_companies", { defaultValue: [] });
     const keywordsItem  = storage.defineItem<string[]>("local:blocked_keywords",  { defaultValue: [] });
     const counterItem   = storage.defineItem<number>("local:workser_hidden_count", { defaultValue: 0  });
     const modeItem      = storage.defineItem<"hide" | "blur">("local:workser_mode", { defaultValue: "hide" });
+    const metricsItem   = storage.defineItem<MetricsStore>("local:workser_metrics", { defaultValue: buildEmptyMetrics() });
 
     let blockedCompanies: string[] = [];
     let blockedKeywords:  string[] = [];
@@ -39,6 +83,59 @@ export default defineContentScript({
       await counterItem.setValue(current + n);
     }
 
+    async function addToMetrics(hiddenNow: number, siteKey: SiteKey, ruleHits: Record<string, number>) {
+      if (hiddenNow <= 0) return;
+
+      const metrics = (await metricsItem.getValue()) ?? buildEmptyMetrics();
+      const dateKey = getDateKey();
+
+      metrics.totalHidden += hiddenNow;
+
+      const today = metrics.daily[dateKey] ?? buildEmptyDaily();
+      today.hidden += hiddenNow;
+      today.bySite[siteKey] += hiddenNow;
+      metrics.daily[dateKey] = today;
+
+      Object.entries(ruleHits).forEach(([rule, count]) => {
+        metrics.ruleHits[rule] = (metrics.ruleHits[rule] ?? 0) + count;
+      });
+
+      const retentionDays = 90;
+      const threshold = new Date();
+      threshold.setDate(threshold.getDate() - retentionDays);
+      const thresholdKey = getDateKey(threshold);
+      Object.keys(metrics.daily).forEach((key) => {
+        if (key < thresholdKey) delete metrics.daily[key];
+      });
+
+      await metricsItem.setValue(metrics);
+    }
+
+    let writeQueue = Promise.resolve();
+
+    function enqueueCounters(hiddenNow: number, siteKey: SiteKey, ruleHits: Record<string, number>) {
+      if (hiddenNow <= 0) return;
+
+      writeQueue = writeQueue
+        .then(async () => {
+          await addToCounter(hiddenNow);
+          await addToMetrics(hiddenNow, siteKey, ruleHits);
+        })
+        .catch((err) => {
+          console.error("Workser metrics update failed", err);
+        });
+    }
+
+    function getMatchedRule(text: string): string | null {
+      for (const company of blockedCompanies) {
+        if (company && text.includes(company)) return `company:${company}`;
+      }
+      for (const keyword of blockedKeywords) {
+        if (keyword && text.includes(keyword)) return `keyword:${keyword}`;
+      }
+      return null;
+    }
+
     function matchesBlockedRule(node: HTMLElement): boolean {
       const text = node.innerText?.toLowerCase() ?? "";
       if (!text) return false;
@@ -51,43 +148,51 @@ export default defineContentScript({
 
     // Aplica el estado bloqueado/desbloqueado según filtros actuales
     // Devuelve true solo si la tarjeta pasó de visible a bloqueada en esta pasada
-    function reconcileCardState(node: HTMLElement): boolean {
-      const matches = matchesBlockedRule(node);
+    function reconcileCardState(node: HTMLElement): { blockedNow: boolean; matchedRule: string | null } {
+      const text = node.innerText?.toLowerCase() ?? "";
+      const matches = text ? matchesBlockedRule(node) : false;
       const isBlocked = node.dataset.workserBlocked === "true";
 
       if (!matches) {
         if (isBlocked) delete node.dataset.workserBlocked;
-        return false;
+        return { blockedNow: false, matchedRule: null };
       }
 
-      if (isBlocked) return false;
+      if (isBlocked) return { blockedNow: false, matchedRule: null };
 
       node.dataset.workserBlocked = "true";
-      return true;
+      return { blockedNow: true, matchedRule: getMatchedRule(text) };
     }
 
     // Escanea todos los trabajos y devuelve cuántos ocultó en esta pasada
-    function cleanJobs(): number {
+    function cleanJobs(): { hiddenNow: number; siteKey: SiteKey; ruleHits: Record<string, number> } {
       const host = location.hostname;
+      const siteKey = getSiteKey(host);
       let selectors = "";
 
       if (host.includes("indeed.com"))            selectors = ".job_seen_beacon";
       else if (host.includes("linkedin.com"))      selectors = ".jobs-search-results__list-item, .scaffold-layout__list-item, .job-card-container, .job-search-card, div[data-component-type='LazyColumn'] > div[data-display-contents='true']";
       else if (host.includes("computrabajo.com"))  selectors = ".box_offer";
 
-      if (!selectors) return 0;
+      if (!selectors) return { hiddenNow: 0, siteKey, ruleHits: {} };
 
       let hiddenNow = 0;
+      const ruleHits: Record<string, number> = {};
       document.querySelectorAll<HTMLElement>(selectors).forEach(card => {
-        if (reconcileCardState(card)) hiddenNow++;
+        const result = reconcileCardState(card);
+        if (!result.blockedNow) return;
+        hiddenNow++;
+        if (result.matchedRule) {
+          ruleHits[result.matchedRule] = (ruleHits[result.matchedRule] ?? 0) + 1;
+        }
       });
-      return hiddenNow;
+      return { hiddenNow, siteKey, ruleHits };
     }
 
     // Escanear y luego actualizar el contador con el total de esta pasada
     async function scanAndCount() {
-      const hiddenNow = cleanJobs();
-      if (hiddenNow > 0) await addToCounter(hiddenNow);
+      const scanResult = cleanJobs();
+      enqueueCounters(scanResult.hiddenNow, scanResult.siteKey, scanResult.ruleHits);
     }
 
     // MutationObserver — para scroll infinito y carga dinámica
