@@ -15,14 +15,16 @@ export default defineContentScript({
       return "other";
     };
 
-    const companiesItem = storage.defineItem<string[]>("local:blocked_companies", { defaultValue: [] });
-    const keywordsItem  = storage.defineItem<string[]>("local:blocked_keywords",  { defaultValue: [] });
-    const modeItem      = storage.defineItem<"hide" | "blur">("local:workser_mode", { defaultValue: "hide" });
-    const enabledItem   = storage.defineItem<boolean>("local:workser_enabled", { defaultValue: true });
+    const companiesItem  = storage.defineItem<string[]>("local:blocked_companies", { defaultValue: [] });
+    const keywordsItem   = storage.defineItem<string[]>("local:blocked_keywords",  { defaultValue: [] });
+    const modeItem       = storage.defineItem<"hide" | "blur">("local:workser_mode", { defaultValue: "hide" });
+    const enabledItem    = storage.defineItem<boolean>("local:workser_enabled", { defaultValue: true });
+    const whitelistItem  = storage.defineItem<string[]>("local:workser_whitelist", { defaultValue: [] });
 
-    let blockedCompanies: string[] = [];
-    let blockedKeywords:  string[] = [];
-    let currentMode: "hide" | "blur" = "hide";
+    let blockedCompanies: string[]     = [];
+    let blockedKeywords:  string[]     = [];
+    let whitelistedCompanies: string[] = [];
+    let currentMode: "hide" | "blur"   = "hide";
     let isEnabled = true;
 
     // Inyectar CSS global para los modos de ocultación
@@ -80,10 +82,21 @@ export default defineContentScript({
       );
     }
 
+    function isWhitelisted(text: string): boolean {
+      return whitelistedCompanies.some(c => c && text.includes(c));
+    }
+
     // Aplica el estado bloqueado/desbloqueado según filtros actuales
     // Devuelve true solo si la tarjeta pasó de visible a bloqueada en esta pasada
     function reconcileCardState(node: HTMLElement): { blockedNow: boolean; matchedRule: string | null } {
       const text = node.innerText?.toLowerCase() ?? "";
+
+      // Whitelist tiene prioridad: si la empresa está permitida, nunca se oculta
+      if (isEnabled && text && isWhitelisted(text)) {
+        if (node.dataset.workserBlocked === "true") delete node.dataset.workserBlocked;
+        return { blockedNow: false, matchedRule: null };
+      }
+
       const matches = isEnabled && text ? matchesBlockedRule(node) : false;
       const isBlocked = node.dataset.workserBlocked === "true";
 
@@ -163,10 +176,11 @@ export default defineContentScript({
 
     // Boot
     async function init() {
-      blockedCompanies = (await companiesItem.getValue() ?? []).map(c => c.toLowerCase());
-      blockedKeywords  = (await keywordsItem.getValue()  ?? []).map(k => k.toLowerCase());
-      currentMode      = (await modeItem.getValue()) ?? "hide";
-      isEnabled        = (await enabledItem.getValue()) ?? true;
+      blockedCompanies     = (await companiesItem.getValue()  ?? []).map(c => c.toLowerCase());
+      blockedKeywords      = (await keywordsItem.getValue()   ?? []).map(k => k.toLowerCase());
+      whitelistedCompanies = (await whitelistItem.getValue()  ?? []).map(c => c.toLowerCase());
+      currentMode          = (await modeItem.getValue()) ?? "hide";
+      isEnabled            = (await enabledItem.getValue()) ?? true;
       document.body.dataset.workserMode = currentMode;
       document.body.dataset.workserEnabled = isEnabled ? "true" : "false";
 
@@ -177,6 +191,10 @@ export default defineContentScript({
       });
       keywordsItem.watch((val) => {
         blockedKeywords = (val ?? []).map(k => k.toLowerCase());
+        scanAndCount();
+      });
+      whitelistItem.watch((val) => {
+        whitelistedCompanies = (val ?? []).map(c => c.toLowerCase());
         scanAndCount();
       });
       modeItem.watch((val) => {

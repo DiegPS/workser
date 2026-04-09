@@ -6,6 +6,7 @@ const hiddenCountKey = "local:workser_hidden_count";
 const modeKey = "local:workser_mode";
 const enabledKey = "local:workser_enabled";
 const metricsRetentionKey = "local:workser_metrics_retention_days";
+const whitelistKey = "local:workser_whitelist";
 
 type SiteKey = "linkedin" | "indeed" | "computrabajo" | "other";
 type RetentionDays = 30 | 90 | 180;
@@ -46,6 +47,7 @@ const metricsStorage = storage.defineItem<MetricsStore>(metricsKey, {
     ruleHits: {},
   },
 });
+const whitelistStorage = storage.defineItem<string[]>(whitelistKey, { defaultValue: [] });
 
 const SITE_ITEMS: Array<{ key: Exclude<SiteKey, "other">; label: string }> = [
   { key: "linkedin", label: "LinkedIn" },
@@ -118,6 +120,32 @@ function normalizeRetentionDays(value: number | null | undefined): RetentionDays
   return 90;
 }
 
+function parseTxtConfig(text: string): {
+  importedCompanies: string[];
+  importedKeywords: string[];
+  importedWhitelist: string[];
+} {
+  const lines = text.split("\n").map((l) => l.trim());
+  let section: "empresas" | "palabras" | "permitidas" | null = null;
+  const importedCompanies: string[] = [];
+  const importedKeywords: string[] = [];
+  const importedWhitelist: string[] = [];
+
+  for (const line of lines) {
+    if (!line || line.startsWith("#")) continue;
+    if (line === "[empresas]") { section = "empresas"; continue; }
+    if (line === "[palabras clave]") { section = "palabras"; continue; }
+    if (line === "[permitidas]") { section = "permitidas"; continue; }
+    if (line.startsWith("[")) { section = null; continue; }
+
+    if (section === "empresas") importedCompanies.push(line);
+    else if (section === "palabras") importedKeywords.push(line);
+    else if (section === "permitidas") importedWhitelist.push(line);
+  }
+
+  return { importedCompanies, importedKeywords, importedWhitelist };
+}
+
 function getSpanishGroupKey(item: string): string {
   const first = item.trim().charAt(0);
   if (!first) return "#";
@@ -137,7 +165,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isEnabled, setIsEnabled] = useState(true);
   const [metricsRetentionDays, setMetricsRetentionDays] = useState<RetentionDays>(90);
-  const [activeTab, setActiveTab] = useState<"companies" | "keywords">("companies");
+  const [activeTab, setActiveTab] = useState<"companies" | "keywords" | "whitelist">("companies");
   const [inputValue, setInputValue] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [listSearch, setListSearch] = useState("");
@@ -147,6 +175,8 @@ export default function App() {
   const [mainTab, setMainTab] = useState<"filters" | "metrics">("filters");
   const [metrics, setMetrics] = useState<MetricsStore>({ totalHidden: 0, daily: {}, ruleHits: {} });
   const [activeSite, setActiveSite] = useState<ActiveSite>(null);
+  const [whitelist, setWhitelist] = useState<string[]>([]);
+  const [importFeedback, setImportFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     companiesStorage.getValue().then((val) => {
@@ -171,6 +201,8 @@ export default function App() {
     metricsRetentionStorage.getValue().then((val) => setMetricsRetentionDays(normalizeRetentionDays(val)));
     metricsStorage.getValue().then((val) => setMetrics(val ?? { totalHidden: 0, daily: {}, ruleHits: {} }));
 
+    whitelistStorage.getValue().then((val) => setWhitelist(normalizeRulesList(val)));
+
     const unsubCompanies = companiesStorage.watch((val) => setCompanies(normalizeRulesList(val)));
     const unsubKeywords = keywordsStorage.watch((val) => setKeywords(normalizeRulesList(val)));
     const unsubCounter = counterStorage.watch((val) => setHiddenCount(val ?? 0));
@@ -178,6 +210,7 @@ export default function App() {
     const unsubEnabled = enabledStorage.watch((val) => setIsEnabled(val ?? true));
     const unsubRetention = metricsRetentionStorage.watch((val) => setMetricsRetentionDays(normalizeRetentionDays(val)));
     const unsubMetrics = metricsStorage.watch((val) => setMetrics(val ?? { totalHidden: 0, daily: {}, ruleHits: {} }));
+    const unsubWhitelist = whitelistStorage.watch((val) => setWhitelist(normalizeRulesList(val)));
 
     return () => {
       unsubCompanies();
@@ -187,6 +220,7 @@ export default function App() {
       unsubEnabled();
       unsubRetention();
       unsubMetrics();
+      unsubWhitelist();
     };
   }, []);
 
@@ -277,18 +311,36 @@ export default function App() {
   const handleAdd = () => {
     const val = normalizeRuleValue(inputValue);
     if (!val) {
-      setAddError(activeTab === "companies" ? "Escribe una empresa valida." : "Escribe una palabra valida.");
+      setAddError(
+        activeTab === "keywords" ? "Escribe una palabra valida." : "Escribe una empresa valida."
+      );
       return;
     }
 
     if (activeTab === "companies") {
       if (companies.includes(val)) {
-        setAddError("Esa empresa ya existe en la lista.");
+        setAddError("Esa empresa ya existe en la lista de bloqueadas.");
+        return;
+      }
+      if (whitelist.includes(val)) {
+        setAddError("Esta empresa ya esta en tu lista de permitidas. Retirala de ahi primero.");
         return;
       }
       const updated = normalizeRulesList([...companies, val]);
       setCompanies(updated);
       companiesStorage.setValue(updated);
+    } else if (activeTab === "whitelist") {
+      if (whitelist.includes(val)) {
+        setAddError("Esa empresa ya existe en la lista de permitidas.");
+        return;
+      }
+      if (companies.includes(val)) {
+        setAddError("Esta empresa ya esta bloqueada. Retirala de la lista de bloqueadas primero.");
+        return;
+      }
+      const updated = normalizeRulesList([...whitelist, val]);
+      setWhitelist(updated);
+      whitelistStorage.setValue(updated);
     } else {
       if (keywords.includes(val)) {
         setAddError("Esa palabra ya existe en la lista.");
@@ -308,6 +360,10 @@ export default function App() {
       const updated = companies.filter((c) => c !== item);
       setCompanies(updated);
       companiesStorage.setValue(updated);
+    } else if (activeTab === "whitelist") {
+      const updated = whitelist.filter((c) => c !== item);
+      setWhitelist(updated);
+      whitelistStorage.setValue(updated);
     } else {
       const updated = keywords.filter((k) => k !== item);
       setKeywords(updated);
@@ -333,9 +389,21 @@ export default function App() {
     }
 
     if (activeTab === "companies") {
+      if (whitelist.includes(next) && next !== oldItem) {
+        setAddError("Esta empresa ya esta en tu lista de permitidas. Retirala de ahi primero.");
+        return;
+      }
       const updated = normalizeRulesList(companies.map((item) => (item === oldItem ? next : item)));
       setCompanies(updated);
       companiesStorage.setValue(updated);
+    } else if (activeTab === "whitelist") {
+      if (companies.includes(next) && next !== oldItem) {
+        setAddError("Esta empresa ya esta bloqueada. Retirala de la lista de bloqueadas primero.");
+        return;
+      }
+      const updated = normalizeRulesList(whitelist.map((item) => (item === oldItem ? next : item)));
+      setWhitelist(updated);
+      whitelistStorage.setValue(updated);
     } else {
       const updated = normalizeRulesList(keywords.map((item) => (item === oldItem ? next : item)));
       setKeywords(updated);
@@ -345,7 +413,7 @@ export default function App() {
     handleCancelEdit();
   };
 
-  const currentList = activeTab === "companies" ? companies : keywords;
+  const currentList = activeTab === "companies" ? companies : activeTab === "whitelist" ? whitelist : keywords;
   const filteredList = useMemo(() => {
     const search = normalizeRuleValue(listSearch);
     if (!search) return currentList;
@@ -375,6 +443,59 @@ export default function App() {
 
   const isMetricsActive = !showSettings && mainTab === "metrics";
   const canSubmitNewRule = normalizeRuleValue(inputValue).length > 0;
+
+  const handleExport = () => {
+    const today = new Date().toLocaleDateString("es-ES");
+    const lines = [
+      "# Workser - Configuracion de filtros",
+      `# Exportado el: ${today}`,
+      "",
+      "[empresas]",
+      ...companies,
+      "",
+      "[palabras clave]",
+      ...keywords,
+      "",
+      "[permitidas]",
+      ...whitelist,
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "workser-filtros.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const { importedCompanies, importedKeywords, importedWhitelist } = parseTxtConfig(text);
+
+      const newCompanies = normalizeRulesList([...companies, ...importedCompanies]);
+      const newKeywords = normalizeRulesList([...keywords, ...importedKeywords]);
+      const newWhitelist = normalizeRulesList([...whitelist, ...importedWhitelist]);
+
+      setCompanies(newCompanies);
+      companiesStorage.setValue(newCompanies);
+      setKeywords(newKeywords);
+      keywordsStorage.setValue(newKeywords);
+      setWhitelist(newWhitelist);
+      whitelistStorage.setValue(newWhitelist);
+
+      setImportFeedback(
+        `Importados: ${importedCompanies.length} empresa(s), ${importedKeywords.length} palabra(s), ${importedWhitelist.length} permitida(s).`
+      );
+      setTimeout(() => setImportFeedback(null), 4000);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   return (
     <div className="app-container">
@@ -540,6 +661,41 @@ export default function App() {
               </div>
               <p className="settings-hint">Define cuanta historia conservar para tendencia y distribucion por portal.</p>
             </div>
+
+            <div className="settings-panel">
+              <div className="settings-panel-head">
+                <h3 className="settings-title">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="12" y1="18" x2="12" y2="12" />
+                    <line x1="9" y1="15" x2="15" y2="15" />
+                  </svg>
+                  Datos y respaldo
+                </h3>
+              </div>
+              <div className="io-row">
+                <button className="btn-io" onClick={handleExport}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Exportar .txt
+                </button>
+                <label className="btn-io btn-io-import">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  Importar .txt
+                  <input type="file" accept=".txt" style={{ display: "none" }} onChange={handleImportFile} />
+                </label>
+              </div>
+              {importFeedback && <p className="io-feedback">{importFeedback}</p>}
+              <p className="settings-hint">Exporta o importa tus listas como archivo de texto plano. La importacion se suma a los filtros existentes.</p>
+            </div>
           </div>
         </div>
       ) : (
@@ -566,6 +722,13 @@ export default function App() {
                     </svg>
                     Palabras Clave
                   </button>
+                  <button className={`tab tab-allow ${activeTab === "whitelist" ? "active" : ""}`} onClick={() => setActiveTab("whitelist")}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      <polyline points="9 12 11 14 15 10" />
+                    </svg>
+                    Permitidas
+                  </button>
                 </div>
               </div>
 
@@ -578,7 +741,7 @@ export default function App() {
                     <option value="za">Z-A</option>
                   </select>
                   <span className="tabs-count">
-                    {filteredList.length}/{currentList.length} {activeTab === "companies" ? "empresas" : "palabras"}
+                    {filteredList.length}/{currentList.length} {activeTab === "companies" ? "empresas" : activeTab === "whitelist" ? "permitidas" : "palabras"}
                   </span>
                 </div>
 
@@ -586,7 +749,7 @@ export default function App() {
                   <input
                     className="list-search"
                     type="text"
-                    placeholder={activeTab === "companies" ? "Buscar empresa..." : "Buscar palabra..."}
+                    placeholder={activeTab === "companies" ? "Buscar empresa..." : activeTab === "whitelist" ? "Buscar permitida..." : "Buscar palabra..."}
                     value={listSearch}
                     onChange={(e) => setListSearch(e.target.value)}
                   />
@@ -596,7 +759,7 @@ export default function App() {
                   <input
                     type="text"
                     className={addError ? "has-error" : ""}
-                    placeholder={activeTab === "companies" ? "Ej. Empresa Spam SA" : "Ej. Call Center, Ventas"}
+                    placeholder={activeTab === "companies" ? "Ej. Empresa Spam SA" : activeTab === "whitelist" ? "Ej. Empresa Confiable SA" : "Ej. Call Center, Ventas"}
                     value={inputValue}
                     onChange={(e) => {
                       setInputValue(e.target.value);
@@ -620,7 +783,7 @@ export default function App() {
                       <line x1="12" y1="8" x2="12" y2="12" />
                       <line x1="12" y1="16" x2="12.01" y2="16" />
                     </svg>
-                    <p>No hay filtros activos todavia.</p>
+                    <p>{activeTab === "whitelist" ? "Ninguna empresa en lista de permitidas." : "No hay filtros activos todavia."}</p>
                   </div>
                 ) : sortedList.length === 0 ? (
                   <div className="empty-state">
@@ -665,7 +828,7 @@ export default function App() {
                               </>
                             ) : (
                               <>
-                                <button className="list-text-btn" onClick={() => handleStartEdit(item)} title="Editar">
+                                <button className={`list-text-btn${activeTab === "whitelist" ? " whitelist-text" : ""}`} onClick={() => handleStartEdit(item)} title="Editar">
                                   {item}
                                 </button>
                                 <button className="btn-remove" onClick={() => handleRemove(item)} title="Eliminar">

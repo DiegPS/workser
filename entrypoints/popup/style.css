@@ -945,3 +945,58 @@ body {
   background: rgba(88, 166, 255, 0.16);
   box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.2);
 }
+
+/* ── Whitelist tab ── */
+.tab-allow.active {
+  color: #7ee787;
+  border-bottom-color: #7ee787;
+}
+
+.list-text-btn.whitelist-text {
+  color: #7ee787;
+}
+
+.list-text-btn.whitelist-text:hover {
+  color: #56d364;
+}
+
+/* ── Import / Export ── */
+.io-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.btn-io {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  color: #8b949e;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-family: inherit;
+  text-align: center;
+}
+
+.btn-io:hover {
+  color: #c9d1d9;
+  border-color: #58a6ff;
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.btn-io-import {
+  cursor: pointer;
+}
+
+.io-feedback {
+  font-size: 11px;
+  color: #7ee787;
+  line-height: 1.35;
+}
