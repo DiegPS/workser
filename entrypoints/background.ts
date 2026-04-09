@@ -22,6 +22,11 @@ export default defineBackground(() => {
     };
   };
 
+  type UpdateBadgeMessage = {
+    type: "workser:update-badge";
+    payload: { count: number };
+  };
+
   const counterItem = storage.defineItem<number>("local:workser_hidden_count", { defaultValue: 0 });
   const metricsItem = storage.defineItem<MetricsStore>("local:workser_metrics", {
     defaultValue: {
@@ -99,13 +104,24 @@ export default defineBackground(() => {
     await metricsItem.setValue(metrics);
   }
 
-  browser.runtime.onMessage.addListener((message: unknown) => {
-    const typed = message as Partial<RecordHiddenMessage>;
-    if (typed?.type !== "workser:record-hidden" || !typed.payload) return;
+  browser.runtime.onMessage.addListener((message: unknown, sender) => {
+    const typed = message as Partial<RecordHiddenMessage> | Partial<UpdateBadgeMessage>;
 
-    enqueueWork(async () => {
-      await applyRecordHidden(typed.payload as RecordHiddenMessage["payload"]);
-    });
+    if (typed?.type === "workser:record-hidden" && typed.payload) {
+      enqueueWork(async () => {
+        await applyRecordHidden(typed.payload as RecordHiddenMessage["payload"]);
+      });
+    }
+
+    if (typed?.type === "workser:update-badge" && sender.tab?.id != null) {
+      const count = (typed as Partial<UpdateBadgeMessage>).payload?.count ?? 0;
+      const tabId = sender.tab.id;
+      const text = count > 0 ? String(count) : "";
+      browser.action.setBadgeText({ tabId, text });
+      if (count > 0) {
+        browser.action.setBadgeBackgroundColor({ tabId, color: "#1f6feb" });
+      }
+    }
   });
 
   retentionItem.watch((val) => {

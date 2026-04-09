@@ -62,6 +62,16 @@ export default defineContentScript({
       });
     }
 
+    function sendBadgeUpdate() {
+      const count = isEnabled
+        ? document.querySelectorAll('[data-workser-blocked="true"]').length
+        : 0;
+      browser.runtime.sendMessage({
+        type: "workser:update-badge",
+        payload: { count },
+      }).catch(() => {});
+    }
+
     function getMatchedRule(text: string): string | null {
       for (const company of blockedCompanies) {
         if (company && text.includes(company)) return `company:${company}`;
@@ -167,6 +177,7 @@ export default defineContentScript({
     async function scanAndCount() {
       const scanResult = cleanJobs();
       enqueueCounters(scanResult.hiddenNow, scanResult.siteKey, scanResult.ruleHits);
+      sendBadgeUpdate();
     }
 
     // MutationObserver — para scroll infinito y carga dinámica
