@@ -1,0 +1,40 @@
+{
+  "$schema": "https://unpkg.com/release-it/schema/release-it.json",
+  "plugins": {
+    "@release-it/conventional-changelog": {
+      "preset": {
+        "name": "conventionalcommits",
+        "types": [
+          { "type": "feat",     "section": "✨ Nuevas funciones" },
+          { "type": "fix",      "section": "🐛 Correcciones" },
+          { "type": "perf",     "section": "⚡ Mejoras de rendimiento" },
+          { "type": "refactor", "section": "♻️ Refactors" },
+          { "type": "style",    "section": "💅 Estilos" },
+          { "type": "docs",     "section": "📝 Documentación" },
+          { "type": "chore",    "hidden": true },
+          { "type": "test",     "hidden": true },
+          { "type": "ci",       "hidden": true }
+        ]
+      },
+      "infile": "CHANGELOG.md",
+      "ignoreRecommendedBump": false
+    }
+  },
+  "git": {
+    "commitMessage": "chore(release): v${version}",
+    "tagName": "v${version}",
+    "tagAnnotation": "Release v${version}",
+    "push": true,
+    "requireBranch": "main"
+  },
+  "github": {
+    "release": false
+  },
+  "npm": {
+    "publish": false
+  },
+  "hooks": {
+    "before:init": ["pnpm compile"],
+    "after:bump": ["pnpm zip", "pnpm zip:firefox"]
+  }
+}
