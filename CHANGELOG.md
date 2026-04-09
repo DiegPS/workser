@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.0](https://github.com/DiegPS/workser/compare/v0.1.0...v0.2.0) (2026-04-09)
+
+### ✨ Nuevas funciones
+
+* show blocked jobs count as badge on extension icon per tab ([ddf455d](https://github.com/DiegPS/workser/commit/ddf455debdac01782d9d9fe1cb9c232d2bba1cad))
+
 ## 0.1.0 (2026-04-09)
 
 ### ✨ Nuevas funciones
